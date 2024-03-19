@@ -83,7 +83,7 @@ void cubeLoop()
     cubeData.signal1 = (int16_t) signal1;
     cubeData.signal2 = (int16_t) signal2;
     cubeData.signal3 = (int16_t) signal3;
-    BlinkyPicoWCube::publishToServer();
+    BlinkyPicoWCube.publishToServer();
     if (printDiagnostics)
     {
       Serial.print("Signals: ");
