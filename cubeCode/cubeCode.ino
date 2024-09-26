@@ -10,9 +10,8 @@ union CubeData
     int16_t nsamples;
     int16_t signal1;
     int16_t signal2;
-    int16_t signal3;
   };
-  byte buffer[14];
+  byte buffer[12];
 };
 CubeData cubeData;
 
@@ -21,7 +20,7 @@ CubeData cubeData;
 
 int commLEDPin = 2;
 int commLEDBright = 255; 
-int resetButtonPin = 3;
+int resetButtonPin = 15;
 
 unsigned long lastPublishTime;
 unsigned long publishInterval = 2000;
@@ -29,7 +28,12 @@ unsigned long publishInterval = 2000;
 void setupServerComm()
 {
   // Optional setup to overide defaults
-  if (printDiagnostics) Serial.begin(115200);
+  if (printDiagnostics) 
+  {
+    Serial.begin(115200);
+    delay(10000);
+  }
+  delay(1000);
   BlinkyPicoWCube.setChattyCathy(printDiagnostics);
   BlinkyPicoWCube.setWifiTimeoutMs(20000);
   BlinkyPicoWCube.setWifiRetryMs(20000);
@@ -48,32 +52,28 @@ void setupServerComm()
 }
 float signal1;
 float signal2;
-float signal3;
 
 void setupCube()
 {
   analogReadResolution(12);
   lastPublishTime = millis();
   cubeData.state = 1;
-  cubeData.nsamples = 10;
+  cubeData.nsamples = 1000;
   cubeData.watchdog = 0;
   cubeData.signal1 = 0;
   cubeData.signal2 = 0;
-  cubeData.signal3 = 0;
 
   cubeData.publishInterval = (int16_t) publishInterval;
 
-  signal1 = (float) analogRead(A2);
+  signal1 = (float) analogRead(A0);
   signal2 = (float) analogRead(A1);
-  signal3 = (float) analogRead(A0);
 }
 
 void cubeLoop()
 {
   unsigned long nowTime = millis();
-  signal1 = signal1 +(((float) analogRead(A2)) - signal1) / ((float) cubeData.nsamples);
+  signal1 = signal1 +(((float) analogRead(A0)) - signal1) / ((float) cubeData.nsamples);
   signal2 = signal2 +(((float) analogRead(A1)) - signal2) / ((float) cubeData.nsamples);
-  signal3 = signal3 +(((float) analogRead(A0)) - signal3) / ((float) cubeData.nsamples);
  
   if ((nowTime - lastPublishTime) > publishInterval)
   {
@@ -82,16 +82,13 @@ void cubeLoop()
     if (cubeData.watchdog > 32760) cubeData.watchdog= 0;
     cubeData.signal1 = (int16_t) signal1;
     cubeData.signal2 = (int16_t) signal2;
-    cubeData.signal3 = (int16_t) signal3;
     BlinkyPicoWCube.publishToServer();
     if (printDiagnostics)
     {
-      Serial.print("Signals: ");
-      Serial.print(cubeData.signal1);
-      Serial.print(", ");
-      Serial.print(cubeData.signal2);
-      Serial.print(", ");
-      Serial.println(cubeData.signal3);
+//      Serial.print("Signals: ");
+//      Serial.print(cubeData.signal1);
+//      Serial.print(", ");
+//      Serial.println(cubeData.signal2);
     }
   }  
 }
@@ -111,9 +108,8 @@ void handleNewSettingFromServer(uint8_t address)
       break;
     case 3:
       if (cubeData.nsamples < 1) cubeData.nsamples = 1;
-      signal1 = (float) analogRead(A2);
+      signal1 = (float) analogRead(A0);
       signal2 = (float) analogRead(A1);
-      signal3 = (float) analogRead(A0);
       break;
     case 4:
       break;

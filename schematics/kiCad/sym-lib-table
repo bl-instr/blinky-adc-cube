@@ -1,5 +1,0 @@
-(sym_lib_table
-  (version 7)
-  (lib (name "MCU_RaspberryPi_and_Boards")(type "Legacy")(uri "${KIPRJMOD}/Library/MCU_RaspberryPi_and_Boards.lib")(options "")(descr ""))
-  (lib (name "BZX84C3V3")(type "KiCad")(uri "${KIPRJMOD}/Library/BZX84C3V3/BZX84C3V3.kicad_sym")(options "")(descr ""))
-)
