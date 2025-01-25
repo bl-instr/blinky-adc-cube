@@ -1,4 +1,4 @@
-boolean printDiagnostics = false;
+boolean printDiagnostics = true;
 
 union CubeData
 {
@@ -27,13 +27,27 @@ unsigned long publishInterval = 2000;
 
 void setupServerComm()
 {
+  pinMode(commLEDPin,OUTPUT);
+  digitalWrite(commLEDPin, LOW);
   // Optional setup to overide defaults
   if (printDiagnostics) 
   {
     Serial.begin(115200);
-    delay(10000);
+    for (int ii = 0; ii < 50; ++ii)
+    {
+      delay(50);
+      digitalWrite(commLEDPin, HIGH);
+      delay(50);
+      digitalWrite(commLEDPin, LOW);
+    }
   }
-  delay(1000);
+  for (int ii = 0; ii < 50; ++ii)
+  {
+    delay(50);
+    digitalWrite(commLEDPin, HIGH);
+    delay(50);
+    digitalWrite(commLEDPin, LOW);
+  }
   BlinkyPicoWCube.setChattyCathy(printDiagnostics);
   BlinkyPicoWCube.setWifiTimeoutMs(20000);
   BlinkyPicoWCube.setWifiRetryMs(20000);
