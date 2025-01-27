@@ -1,133 +1,80 @@
-boolean printDiagnostics = true;
+#define BLINKY_DIAG         0
+#define COMM_LED_PIN       16
+#define RST_BUTTON_PIN     15
+#include <BlinkyPicoW.h>
 
-union CubeData
+struct CubeSetting
 {
-  struct
-  {
-    int16_t state;
-    int16_t watchdog;
-    int16_t publishInterval;
-    int16_t nsamples;
-    int16_t signal1;
-    int16_t signal2;
-  };
-  byte buffer[12];
+  uint16_t publishInterval;
+  uint16_t nsamples;
 };
-CubeData cubeData;
+CubeSetting setting;
 
-#include "BlinkyPicoWCube.h"
+struct CubeReading
+{
+  uint16_t adc0;
+  uint16_t adc1;
+  uint16_t bandWidth;
+};
+CubeReading reading;
 
-
-int commLEDPin = 2;
-int commLEDBright = 255; 
-int resetButtonPin = 15;
 
 unsigned long lastPublishTime;
-unsigned long publishInterval = 2000;
+float fadc0;
+float fadc1;
+int digCount;
 
-void setupServerComm()
+
+void setupBlinky()
 {
-  pinMode(commLEDPin,OUTPUT);
-  digitalWrite(commLEDPin, LOW);
-  // Optional setup to overide defaults
-  if (printDiagnostics) 
-  {
-    Serial.begin(115200);
-    for (int ii = 0; ii < 50; ++ii)
-    {
-      delay(50);
-      digitalWrite(commLEDPin, HIGH);
-      delay(50);
-      digitalWrite(commLEDPin, LOW);
-    }
-  }
-  for (int ii = 0; ii < 50; ++ii)
-  {
-    delay(50);
-    digitalWrite(commLEDPin, HIGH);
-    delay(50);
-    digitalWrite(commLEDPin, LOW);
-  }
-  BlinkyPicoWCube.setChattyCathy(printDiagnostics);
-  BlinkyPicoWCube.setWifiTimeoutMs(20000);
-  BlinkyPicoWCube.setWifiRetryMs(20000);
-  BlinkyPicoWCube.setMqttRetryMs(3000);
-  BlinkyPicoWCube.setResetTimeoutMs(10000);
-  BlinkyPicoWCube.setHdwrWatchdogMs(8000);
-  BlinkyPicoWCube.setBlMqttKeepAlive(8);
-  BlinkyPicoWCube.setBlMqttSocketTimeout(4);
-  BlinkyPicoWCube.setMqttLedFlashMs(10);
-  BlinkyPicoWCube.setWirelesBlinkMs(100);
-  BlinkyPicoWCube.setMaxNoMqttErrors(5);
-  BlinkyPicoWCube.setMaxNoConnectionAttempts(5);
-  
-  // Must be included
-  BlinkyPicoWCube.init(commLEDPin, commLEDBright, resetButtonPin);
+  if (BLINKY_DIAG > 0) Serial.begin(9600);
+
+  BlinkyPicoW.setMqttKeepAlive(15);
+  BlinkyPicoW.setMqttSocketTimeout(4);
+  BlinkyPicoW.setMqttPort(1883);
+  BlinkyPicoW.setMqttLedFlashMs(100);
+  BlinkyPicoW.setHdwrWatchdogMs(8000);
+
+  BlinkyPicoW.begin(BLINKY_DIAG, COMM_LED_PIN, RST_BUTTON_PIN, true, sizeof(setting), sizeof(reading));
 }
-float signal1;
-float signal2;
 
 void setupCube()
 {
   analogReadResolution(12);
-  lastPublishTime = millis();
-  cubeData.state = 1;
-  cubeData.nsamples = 1000;
-  cubeData.watchdog = 0;
-  cubeData.signal1 = 0;
-  cubeData.signal2 = 0;
+  setting.publishInterval = 2000;
+  setting.nsamples = 2;
 
-  cubeData.publishInterval = (int16_t) publishInterval;
+  reading.adc0 = 0;
+  reading.adc1 = 0;
+  fadc0 = (float) analogRead(A0);
+  fadc1 = (float) analogRead(A1);
+  digCount = 1;
 
-  signal1 = (float) analogRead(A0);
-  signal2 = (float) analogRead(A1);
+  lastPublishTime = millis(); 
 }
-
-void cubeLoop()
+void loopCube()
 {
-  unsigned long nowTime = millis();
-  signal1 = signal1 +(((float) analogRead(A0)) - signal1) / ((float) cubeData.nsamples);
-  signal2 = signal2 +(((float) analogRead(A1)) - signal2) / ((float) cubeData.nsamples);
- 
-  if ((nowTime - lastPublishTime) > publishInterval)
+  unsigned long now = millis();
+  if ((now - lastPublishTime) > setting.publishInterval)
   {
-    lastPublishTime = nowTime;
-    cubeData.watchdog = cubeData.watchdog + 1;
-    if (cubeData.watchdog > 32760) cubeData.watchdog= 0;
-    cubeData.signal1 = (int16_t) signal1;
-    cubeData.signal2 = (int16_t) signal2;
-    BlinkyPicoWCube.publishToServer();
-    if (printDiagnostics)
-    {
-//      Serial.print("Signals: ");
-//      Serial.print(cubeData.signal1);
-//      Serial.print(", ");
-//      Serial.println(cubeData.signal2);
-    }
-  }  
-}
+    float fbandwidth = 500.0 * ( ((float) digCount) / ((float) setting.publishInterval) ) / ((float) setting.nsamples);
+    reading.bandWidth = (uint16_t) fbandwidth;   
+    lastPublishTime = now;
+    reading.adc0 = (uint16_t) (fadc0 * 8);
+    reading.adc1 = (uint16_t) (fadc1 * 8);
+    boolean successful = BlinkyPicoW.publishCubeData((uint8_t*) &setting, (uint8_t*) &reading, false);
+    digCount = 0;
+  }
+  fadc0 = fadc0 +(((float) analogRead(A0)) - fadc0) / ((float) setting.nsamples);
+  fadc1 = fadc1 +(((float) analogRead(A1)) - fadc1) / ((float) setting.nsamples);
+  ++digCount;
 
-
-void handleNewSettingFromServer(uint8_t address)
-{
-  switch(address)
+  boolean newSettings = BlinkyPicoW.retrieveCubeSetting((uint8_t*) &setting);
+  if (newSettings)
   {
-    case 0:
-      break;
-    case 1:
-      break;
-    case 2:
-      if (cubeData.publishInterval < 500) cubeData.publishInterval = 500;
-      publishInterval = (unsigned long) cubeData.publishInterval;
-      break;
-    case 3:
-      if (cubeData.nsamples < 1) cubeData.nsamples = 1;
-      signal1 = (float) analogRead(A0);
-      signal2 = (float) analogRead(A1);
-      break;
-    case 4:
-      break;
-    default:
-      break;
+    if (setting.publishInterval < 500) setting.publishInterval = 500;
+    if (setting.nsamples < 1) setting.nsamples = 1;
+    fadc0 = (float) analogRead(A0);
+    fadc0 = (float) analogRead(A1);
   }
 }
