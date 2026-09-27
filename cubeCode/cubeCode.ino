@@ -109,18 +109,19 @@ void loopCube() {
     const float nsamples = (setting.nsamples > 0) ? static_cast<float>(setting.nsamples) : 1.0f;
 
     reading.adc[i] += (newAdc - reading.adc[i]) / nsamples;
-
-    if (outsideLimits(reading.adc[i], readingLow.adc[i], readingHigh.adc[i])) {
-      if (readingArm.adc[i]) {
-        const bool published = BlinkyPicoW.publishCubeData(
-          reinterpret_cast<uint8_t*>(&setting), 
-          reinterpret_cast<uint8_t*>(&reading), 
-          true
-        );
-        
-        readingArm.adc[i] = !published;
-        if (published) {
-          lastPublishTime = now;
+    if (BlinkyPicoW.isInitialized()) {  
+      if (outsideLimits(reading.adc[i], readingLow.adc[i], readingHigh.adc[i])) {
+        if (readingArm.adc[i]) {
+          const bool published = BlinkyPicoW.publishCubeData(
+            reinterpret_cast<uint8_t*>(&setting), 
+            reinterpret_cast<uint8_t*>(&reading), 
+            true
+          );
+          
+          readingArm.adc[i] = !published;
+          if (published) {
+            lastPublishTime = now;
+          }
         }
       }
     }
